@@ -22,10 +22,8 @@ typedef struct {
 } Point;
 
 typedef struct {
-  Point *buf;
-  Point *head;
-  Point *end;
   Point *start;
+  Point *head;
   size_t max_size;
   Direction last_direction;
 } Snake_buffer;
@@ -33,77 +31,75 @@ typedef struct {
 pthread_mutex_t input_mutex;
 volatile sig_atomic_t g_thread_status = 0;
 
-bool snake_init (Snake_buffer *s_buffer, size_t size)
+bool snake_init (Snake_buffer *snake_buffer, size_t size)
 {
-  s_buffer->buf = (Point *) malloc(size*sizeof(Point));
-  if (s_buffer->buf == NULL)
+  snake_buffer->start = (Point *) malloc(size*sizeof(Point));
+  if (snake_buffer->start == NULL)
     return false;
 
   for (int i=0; i < (int)size; i++)
-    s_buffer->buf[i].x = s_buffer->buf[i].y = 0;
+    snake_buffer->start[i].x = snake_buffer->start[i].y = 0;
 
-  s_buffer->head  = s_buffer->buf;
-  s_buffer->start = s_buffer->buf;
-  s_buffer->end   = (s_buffer->buf) + size;
-  s_buffer->max_size = size;
+  snake_buffer->head  = snake_buffer->start;
+  snake_buffer->max_size = size;
   return true;
 }
 
 
-Point* get_next(const Snake_buffer *snake_buf, Point *pos)
+Point* get_next(const Snake_buffer *snake_buffer, Point *position)
 {
-  pos++;
-  if (pos == snake_buf->end)
-    return snake_buf->start;
-  return pos;
+  position++;
+  if (position == snake_buffer->start + snake_buffer->max_size)
+    return snake_buffer->start;
+  return position;
 }
 
-bool move_by_offset(Snake_buffer *snake_buf, Direction direction)
+bool move_by_offset(Snake_buffer *snake_buffer, Direction direction)
 {
   Point *next;
 
-  if ((direction == LEFT    && snake_buf->last_direction == RIGHT)
-      || (direction == RIGHT && snake_buf->last_direction == LEFT)
-      || (direction == UP    && snake_buf->last_direction == DOWN)
-      || (direction == DOWN  && snake_buf->last_direction == UP))
+  if ((direction == LEFT     && snake_buffer->last_direction == RIGHT)
+      || (direction == RIGHT && snake_buffer->last_direction == LEFT)
+      || (direction == UP    && snake_buffer->last_direction == DOWN)
+      || (direction == DOWN  && snake_buffer->last_direction == UP))
     {
       return false;
     }
 
-  snake_buf->last_direction = direction;
+  snake_buffer->last_direction = direction;
 
-  if ((snake_buf->head->x <= 0       && direction == LEFT)
-      || (snake_buf->head->x >= X_MAX && direction == RIGHT)
-      || (snake_buf->head->y <= 0     && direction == UP)
-      || (snake_buf->head->y >= Y_MAX && direction == DOWN))
+  if ((snake_buffer->head->x <= 0        && direction == LEFT)
+      || (snake_buffer->head->x >= X_MAX && direction == RIGHT)
+      || (snake_buffer->head->y <= 0     && direction == UP)
+      || (snake_buffer->head->y >= Y_MAX && direction == DOWN))
     {
       return false;
     }
 
-  next = get_next(snake_buf, snake_buf->head);
+  next = get_next(snake_buffer, snake_buffer->head);
   switch (direction)
     {
     case LEFT:
-      next->x = snake_buf->head->x + -1;
-      next->y = snake_buf->head->y;
+      next->x = snake_buffer->head->x + -1;
+      next->y = snake_buffer->head->y;
       break;
 
     case RIGHT:
-      next->x = snake_buf->head->x + 1;
-      next->y = snake_buf->head->y;
+      next->x = snake_buffer->head->x + 1;
+      next->y = snake_buffer->head->y;
       break;
 
     case UP:
-      next->x = snake_buf->head->x;
-      next->y = snake_buf->head->y - 1;
+      next->x = snake_buffer->head->x;
+      next->y = snake_buffer->head->y - 1;
       break;
 
     case DOWN:
-      next->x = snake_buf->head->x;
-      next->y = snake_buf->head->y + 1;
+      next->x = snake_buffer->head->x;
+      next->y = snake_buffer->head->y + 1;
       break;
     }  
-  snake_buf->head = next;
+  snake_buffer->head = next;
   
   return true;
 }
@@ -196,7 +192,7 @@ int main(int argc, char *argv[])
 
   pthread_join(input_reader_thread, NULL);
   endwin();
-  free(snake_buffer.buf);
+  free(snake_buffer.start);
 
   return 0;
 }
