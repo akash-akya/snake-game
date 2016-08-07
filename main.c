@@ -189,9 +189,11 @@ int is_snake_hitting_wall(Snake_buffer *snake_buffer)
   return 0;
 }
 
-void game_over ()
+void game_over (const char *msg)
 {
-  mvprintw(get_mid_y(), get_mid_x(), "GAME-OVER");
+  unsigned int len_msg = strlen(msg);
+  mvprintw(get_mid_y()-1, get_mid_x()-len_msg/2, msg);
+  mvprintw(get_mid_y(), get_mid_x()-5, "GAME-OVER");
   refresh();
   g_thread_status = STATUS_STOPPED;
 }
@@ -206,12 +208,12 @@ void game_loop(Snake_buffer *snake_buffer, long refresh_rate)
 
       if (is_snake_biting_itself(snake_buffer))
         {
-          game_over();
+          game_over("Stop biting yourself!");
           continue;
         }
       else if (is_snake_hitting_wall(snake_buffer))
         {
-          game_over();
+          game_over("Watch your head!");
           continue;
         }
 
