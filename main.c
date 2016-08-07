@@ -36,7 +36,7 @@ bool snake_init (Snake_buffer *snake_buffer, size_t size)
     return false;
 
   for (int i=0; i < (int)size; i++)
-    snake_buffer->start[i].x = snake_buffer->start[i].y = 0;
+    snake_buffer->start[i].x = snake_buffer->start[i].y = 1;
 
   snake_buffer->head  = snake_buffer->start;
   snake_buffer->max_size = size;
@@ -126,6 +126,20 @@ void print_buf(Snake_buffer *snake_buffer)
   printf("\n");
 }
 
+int is_snake_biting_itself(Snake_buffer *snake_buffer)
+{
+  Point *head  = snake_buffer->head;
+  Point *point = get_next(snake_buffer, head);
+    
+  for (size_t i = 0; i < snake_buffer->max_size-1; i++)
+    {
+      if (point->x == head->x && point->y == head->y)
+        return 1;        
+      point = get_next(snake_buffer, point);
+    }
+  return 0;
+}
+
 void *read_user_input (void *arg)
 {
   char choice;
@@ -161,6 +175,27 @@ void init_window(int block_size)
   set_unit_size(block_size, block_size);
 }
 
+int is_snake_hitting_wall(Snake_buffer *snake_buffer)
+{
+  
+  if ((snake_buffer->head->x <= 0)
+      || (snake_buffer->head->x >= get_x_max())
+      || (snake_buffer->head->y <= 0)
+      || (snake_buffer->head->y >= get_y_max()))
+    {
+      return 1;
+    }
+
+  return 0;
+}
+
+void game_over ()
+{
+  mvprintw(get_mid_y(), get_mid_x(), "GAME-OVER");
+  refresh();
+  g_thread_status = STATUS_STOPPED;
+}
+
 void game_loop(Snake_buffer *snake_buffer, long refresh_rate)
 {
   while (g_thread_status == STATUS_RUNNING)
@@ -168,6 +203,17 @@ void game_loop(Snake_buffer *snake_buffer, long refresh_rate)
       pthread_mutex_lock(&input_mutex);
       move_by_offset(snake_buffer, snake_buffer->last_direction);
       pthread_mutex_unlock(&input_mutex);
+
+      if (is_snake_biting_itself(snake_buffer))
+        {
+          game_over();
+          continue;
+        }
+      else if (is_snake_hitting_wall(snake_buffer))
+        {
+          game_over();
+          continue;
+        }
 
       clear();
       draw_snake((const Snake_buffer *) snake_buffer);
@@ -194,7 +240,7 @@ int main(int argc, char *argv[])
   pthread_create(&input_reader_thread, NULL, read_user_input, &snake_buffer);
 
   snake_buffer.last_direction = RIGHT;
-  game_loop(&snake_buffer, 10000);
+  game_loop(&snake_buffer, 25000);
 
   pthread_join(input_reader_thread, NULL);
   endwin();

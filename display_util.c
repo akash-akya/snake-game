@@ -16,6 +16,16 @@ int set_unit_size (int unit_x, int unit_y)
   return 0;
 }
 
+int get_mid_x ()
+{
+  return X_MAX/2;
+}
+
+int get_mid_y ()
+{
+  return Y_MAX/2;
+}
+
 void get_string (char *s, int unit, char ch)
 {
   int i;
