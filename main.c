@@ -26,7 +26,6 @@ typedef struct {
   Direction last_direction;
 } Snake_buffer;
 
-static long g_refresh_rate;
 static pthread_mutex_t input_mutex;
 volatile sig_atomic_t g_thread_status = 0;
 
@@ -154,13 +153,28 @@ void *read_user_input (void *arg)
   return NULL;
 }
 
-void init_window()
+void init_window(int block_size)
 {
   initscr();
   noecho();
   curs_set(FALSE);
-  g_refresh_rate = 30000;
-  set_unit_size(2, 2);
+  set_unit_size(block_size, block_size);
+}
+
+void game_loop(Snake_buffer *snake_buffer, long refresh_rate)
+{
+  while (g_thread_status == STATUS_RUNNING)
+    {
+      pthread_mutex_lock(&input_mutex);
+      move_by_offset(snake_buffer, snake_buffer->last_direction);
+      pthread_mutex_unlock(&input_mutex);
+
+      clear();
+      draw_snake((const Snake_buffer *) snake_buffer);
+      refresh();
+
+      display_delay(refresh_rate);
+    }
 }
 
 int main(int argc, char *argv[])
@@ -174,24 +188,13 @@ int main(int argc, char *argv[])
       return -1;
     }
 
-  init_window();
+  init_window(2);
   
   g_thread_status = STATUS_RUNNING;
   pthread_create(&input_reader_thread, NULL, read_user_input, &snake_buffer);
 
   snake_buffer.last_direction = RIGHT;
-  while (g_thread_status == STATUS_RUNNING)
-    {
-      pthread_mutex_lock(&input_mutex);
-      move_by_offset(&snake_buffer, snake_buffer.last_direction);
-      pthread_mutex_unlock(&input_mutex);
-
-      clear();
-      draw_snake((const Snake_buffer *) &snake_buffer);
-      refresh();
-
-      usleep(g_refresh_rate);
-    }
+  game_loop(&snake_buffer, 10000);
 
   pthread_join(input_reader_thread, NULL);
   endwin();

@@ -1,5 +1,7 @@
 #include <ncurses.h>
 #include <assert.h>
+#include <stdlib.h>
+#include <unistd.h>
 #include "display_util.h"
 
 static int g_unit_x, g_unit_y;
@@ -39,10 +41,15 @@ void print_point (int pos_y, int pos_x, char *ch)
 
 inline int get_x_max()
 {
-  return  X_MAX/g_unit_x;
+  return  (X_MAX-1)/g_unit_x;
 }
 
 inline int get_y_max()
 {
-  return  Y_MAX/g_unit_y;
+  return  (Y_MAX-1)/g_unit_y;
+}
+
+inline void display_delay(long refresh_rate)
+{
+  usleep(refresh_rate*g_unit_x);
 }
