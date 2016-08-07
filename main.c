@@ -6,9 +6,7 @@
 #include <pthread.h>
 #include <string.h>
 
-#define X_MAX 135
-#define Y_MAX 76
-#define REFRESH_RATE 25000
+#include "display_util.h"
 
 #define STATUS_IDLE 0
 #define STATUS_RUNNING 1
@@ -28,7 +26,8 @@ typedef struct {
   Direction last_direction;
 } Snake_buffer;
 
-pthread_mutex_t input_mutex;
+static long g_refresh_rate;
+static pthread_mutex_t input_mutex;
 volatile sig_atomic_t g_thread_status = 0;
 
 bool snake_init (Snake_buffer *snake_buffer, size_t size)
@@ -45,7 +44,6 @@ bool snake_init (Snake_buffer *snake_buffer, size_t size)
   return true;
 }
 
-
 Point* get_next(const Snake_buffer *snake_buffer, Point *position)
 {
   position++;
@@ -58,7 +56,7 @@ bool move_by_offset(Snake_buffer *snake_buffer, Direction direction)
 {
   Point *next;
 
-  if ((direction == LEFT     && snake_buffer->last_direction == RIGHT)
+  if ((direction == LEFT    && snake_buffer->last_direction == RIGHT)
       || (direction == RIGHT && snake_buffer->last_direction == LEFT)
       || (direction == UP    && snake_buffer->last_direction == DOWN)
       || (direction == DOWN  && snake_buffer->last_direction == UP))
@@ -66,52 +64,55 @@ bool move_by_offset(Snake_buffer *snake_buffer, Direction direction)
       return false;
     }
 
-  snake_buffer->last_direction = direction;
+  if ((snake_buffer->head->x > 0               && direction == LEFT)
+      || (snake_buffer->head->x < get_x_max()   && direction == RIGHT)
+      || (snake_buffer->head->y > 0             && direction == UP)
+      || (snake_buffer->head->y < get_y_max()   && direction == DOWN))
+    {
 
-  if ((snake_buffer->head->x <= 0        && direction == LEFT)
-      || (snake_buffer->head->x >= X_MAX && direction == RIGHT)
-      || (snake_buffer->head->y <= 0     && direction == UP)
-      || (snake_buffer->head->y >= Y_MAX && direction == DOWN))
+      snake_buffer->last_direction = direction;
+
+      next = get_next(snake_buffer, snake_buffer->head);
+      switch (direction)
+        {
+        case LEFT:
+          next->x = snake_buffer->head->x + -1;
+          next->y = snake_buffer->head->y;
+          break;
+
+        case RIGHT:
+          next->x = snake_buffer->head->x + 1;
+          next->y = snake_buffer->head->y;
+          break;
+
+        case UP:
+          next->x = snake_buffer->head->x;
+          next->y = snake_buffer->head->y - 1;
+          break;
+
+        case DOWN:
+          next->x = snake_buffer->head->x;
+          next->y = snake_buffer->head->y + 1;
+          break;
+        }
+      snake_buffer->head = next;
+  
+      return true;
+    }
+  else
     {
       return false;
     }
-
-  next = get_next(snake_buffer, snake_buffer->head);
-  switch (direction)
-    {
-    case LEFT:
-      next->x = snake_buffer->head->x + -1;
-      next->y = snake_buffer->head->y;
-      break;
-
-    case RIGHT:
-      next->x = snake_buffer->head->x + 1;
-      next->y = snake_buffer->head->y;
-      break;
-
-    case UP:
-      next->x = snake_buffer->head->x;
-      next->y = snake_buffer->head->y - 1;
-      break;
-
-    case DOWN:
-      next->x = snake_buffer->head->x;
-      next->y = snake_buffer->head->y + 1;
-      break;
-    }  
-  snake_buffer->head = next;
-  
-  return true;
 }
 
 void draw_snake (const Snake_buffer *snake_buffer)
 {
   Point *point = snake_buffer->head;
   
-  for (size_t i = 0; i < snake_buffer->max_size-1; i++)
+  for (size_t i = 0; i < snake_buffer->max_size; i++)
     {
+      print_point(point->y, point->x, "*");
       point = get_next(snake_buffer, point);
-      mvprintw(point->y/2, point->x, "*");
     }
 }
 
@@ -158,6 +159,8 @@ void init_window()
   initscr();
   noecho();
   curs_set(FALSE);
+  g_refresh_rate = 30000;
+  set_unit_size(2, 2);
 }
 
 int main(int argc, char *argv[])
@@ -167,7 +170,7 @@ int main(int argc, char *argv[])
 
   if (!snake_init(&snake_buffer, 30))
     {
-      printf("Cant allocte memory!!");
+      printf("Can't allocte memory!!");
       return -1;
     }
 
@@ -179,15 +182,15 @@ int main(int argc, char *argv[])
   snake_buffer.last_direction = RIGHT;
   while (g_thread_status == STATUS_RUNNING)
     {
-      clear();
-      draw_snake((const Snake_buffer *) &snake_buffer);
-      refresh();
-
       pthread_mutex_lock(&input_mutex);
       move_by_offset(&snake_buffer, snake_buffer.last_direction);
       pthread_mutex_unlock(&input_mutex);
 
-      usleep(REFRESH_RATE);
+      clear();
+      draw_snake((const Snake_buffer *) &snake_buffer);
+      refresh();
+
+      usleep(g_refresh_rate);
     }
 
   pthread_join(input_reader_thread, NULL);
