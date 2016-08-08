@@ -6,6 +6,8 @@
 
 static int g_unit_x, g_unit_y;
 
+inline int get_unit_size() { return g_unit_x; }
+
 int set_unit_size (int unit_x, int unit_y)
 {
   assert(unit_x < X_MAX);
@@ -16,17 +18,7 @@ int set_unit_size (int unit_x, int unit_y)
   return 0;
 }
 
-int get_mid_x ()
-{
-  return X_MAX/2;
-}
-
-int get_mid_y ()
-{
-  return Y_MAX/2;
-}
-
-void get_string (char *s, int unit, char ch)
+static void get_string (char *s, int unit, char ch)
 {
   int i;
   
@@ -35,29 +27,44 @@ void get_string (char *s, int unit, char ch)
   s[i] = '\0';
 }
 
-void print_point (int pos_y, int pos_x, char *ch)
+void print_string_at_point (int pos_y, int pos_x, char ch, int length)
 {
   char s[g_unit_x];
   
-  assert(ch != NULL);
-  assert(pos_x >= 0 && pos_x <= X_MAX/g_unit_x);
+  assert(pos_x >= 0 && pos_x <= X_MAX/g_unit_x-g_unit_x);
   assert(pos_y >= 0 && pos_y <= Y_MAX/g_unit_y);
 
-  get_string(s, g_unit_x, '*');
+  get_string(s, length, ch);
 
   for (int i = 0; i < g_unit_y; i++)
     mvprintw(pos_y*g_unit_y+i, pos_x*g_unit_x, s);
 }
 
-inline int get_x_max()
+void print_char_at_point (int pos_y, int pos_x, char ch)
 {
-  return  (X_MAX-1)/g_unit_x;
+  char s[2] = {ch, '\0'};
+  mvprintw(pos_y, pos_x, s);
 }
 
-inline int get_y_max()
+
+void replace_all_char(char src, char dst)
 {
-  return  (Y_MAX-1)/g_unit_y;
+  unsigned long s[2];
+  for (int i = 0; i < Y_MAX; i++)
+    {
+      for (int j = 0; j < X_MAX; j++)
+        if (mvinchnstr(i, j, s, 1) && s[0] == (unsigned long)src)
+          print_char_at_point(i, j, dst);
+    }
 }
+
+inline int get_mid_x() { return X_MAX/2; }
+
+inline int get_mid_y() { return Y_MAX/2; }
+
+inline int get_x_max() { return (X_MAX-1)/g_unit_x; }
+
+inline int get_y_max() { return (Y_MAX-1)/g_unit_y; }
 
 inline void display_delay(long refresh_rate)
 {

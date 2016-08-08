@@ -27,7 +27,7 @@ typedef struct {
   Direction last_direction;
 } Snake_buffer;
 
-static pthread_mutex_t input_mutex;
+static pthread_mutex_t buffer_access_mutex;
 static volatile sig_atomic_t g_thread_status = 0;
 
 bool snake_init (Snake_buffer *snake_buffer, size_t size)
@@ -69,9 +69,7 @@ int for_each_point(Snake_buffer *snake_buffer, int (*operation)(const Point *))
 
 bool move_by_offset(Snake_buffer *snake_buffer, Direction direction)
 {
-  pthread_mutex_lock(&input_mutex);
-
-  // Snake should not move backwards 
+  // Snake should not move backwards
   if ((direction == LEFT    && snake_buffer->last_direction == RIGHT)
       || (direction == RIGHT && snake_buffer->last_direction == LEFT)
       || (direction == UP    && snake_buffer->last_direction == DOWN)
@@ -80,10 +78,12 @@ bool move_by_offset(Snake_buffer *snake_buffer, Direction direction)
       return false;
     }
 
+  pthread_mutex_lock(&buffer_access_mutex);
+
   Point *next = get_next(snake_buffer, snake_buffer->head);
   next->x = snake_buffer->head->x;
   next->y = snake_buffer->head->y;
-  
+
   switch (direction)
     {
     case LEFT:  next->x -= 1;
@@ -100,11 +100,15 @@ bool move_by_offset(Snake_buffer *snake_buffer, Direction direction)
   // Save current direction as last-direction
   snake_buffer->last_direction = direction;
 
-  pthread_mutex_unlock(&input_mutex);
+  pthread_mutex_unlock(&buffer_access_mutex);
   return true;
 }
 
-int draw_point(const Point *p) { print_point(p->y, p->x, "*"); return 0;}
+int draw_point(const Point *p)
+{
+  print_string_at_point(p->y, p->x, '*', get_unit_size());
+  return 0;
+}
 
 int debug_print_point(const Point *p) { printf("x:%u y:%u\n", p->x, p->y); return 0;}
 
@@ -112,7 +116,7 @@ int is_snake_biting_itself(Snake_buffer *snake_buffer)
 {
   Point *head  = snake_buffer->head;
   Point *point = get_next(snake_buffer, head);
-    
+
   for (size_t i = 0; i < snake_buffer->max_size-1; i++)
     {
       if (point->x == head->x && point->y == head->y)
@@ -158,7 +162,7 @@ void init_window(int block_size)
 }
 
 int is_snake_hitting_wall(Snake_buffer *snake_buffer)
-{  
+{
   if ((snake_buffer->head->x <= 0)
       || (snake_buffer->head->x >= get_x_max())
       || (snake_buffer->head->y <= 0)
@@ -175,7 +179,15 @@ void game_over (const char *msg)
   mvprintw(get_mid_y()-1, get_mid_x()-len_msg/2, msg);
   mvprintw(get_mid_y(), get_mid_x()-5, "GAME-OVER");
   refresh();
-  g_thread_status = STATUS_STOPPED;
+
+  int t = 0;
+  while (g_thread_status == STATUS_RUNNING)
+    {
+      replace_all_char("*."[t], ".*"[t]);
+      t = (t+1)%2;
+      refresh();
+      display_delay(200000);
+    }
 }
 
 void game_loop(Snake_buffer *snake_buffer, long refresh_rate)
@@ -200,7 +212,7 @@ void game_loop(Snake_buffer *snake_buffer, long refresh_rate)
 int main(int argc, char *argv[])
 {
   Snake_buffer snake_buffer;
-  pthread_t input_reader_thread;  
+  pthread_t input_reader_thread;
 
   if (!snake_init(&snake_buffer, 30))
     {
@@ -209,7 +221,7 @@ int main(int argc, char *argv[])
     }
 
   init_window(2);
-  
+
   g_thread_status = STATUS_RUNNING;
   pthread_create(&input_reader_thread, NULL, read_user_input, &snake_buffer);
 
