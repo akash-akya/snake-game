@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <stdio.h>
+#include <assert.h>
 #include <pthread.h>
 #include <string.h>
 
@@ -51,9 +52,23 @@ Point* get_next(const Snake_buffer *snake_buffer, Point *position)
   return position;
 }
 
+int for_each_point(Snake_buffer *snake_buffer, int (*operation)(const Point *))
+{
+  assert(snake_buffer != NULL);
+  int ret;
+  Point *point = snake_buffer->head;
+  for (size_t i = 0; i < snake_buffer->max_size; i++)
+    {
+      ret = operation(point);
+      if (ret != 0)
+        return ret;
+      point = get_next(snake_buffer, point);
+    }
+  return 0;
+}
+
 bool move_by_offset(Snake_buffer *snake_buffer, Direction direction)
 {
-  Point *next;
 
   if ((direction == LEFT    && snake_buffer->last_direction == RIGHT)
       || (direction == RIGHT && snake_buffer->last_direction == LEFT)
@@ -63,68 +78,27 @@ bool move_by_offset(Snake_buffer *snake_buffer, Direction direction)
       return false;
     }
 
-  if ((snake_buffer->head->x > 0               && direction == LEFT)
-      || (snake_buffer->head->x < get_x_max()   && direction == RIGHT)
-      || (snake_buffer->head->y > 0             && direction == UP)
-      || (snake_buffer->head->y < get_y_max()   && direction == DOWN))
-    {
+  Point *next = get_next(snake_buffer, snake_buffer->head);
+  snake_buffer->last_direction = direction;
 
-      snake_buffer->last_direction = direction;
-
-      next = get_next(snake_buffer, snake_buffer->head);
-      switch (direction)
-        {
-        case LEFT:
-          next->x = snake_buffer->head->x + -1;
-          next->y = snake_buffer->head->y;
-          break;
-
-        case RIGHT:
-          next->x = snake_buffer->head->x + 1;
-          next->y = snake_buffer->head->y;
-          break;
-
-        case UP:
-          next->x = snake_buffer->head->x;
-          next->y = snake_buffer->head->y - 1;
-          break;
-
-        case DOWN:
-          next->x = snake_buffer->head->x;
-          next->y = snake_buffer->head->y + 1;
-          break;
-        }
-      snake_buffer->head = next;
+  next->x = snake_buffer->head->x;
+  next->y = snake_buffer->head->y;
   
-      return true;
-    }
-  else
+  switch (direction)
     {
-      return false;
+    case LEFT:  next->x -= 1; break;
+    case RIGHT: next->x += 1; break;
+    case UP:    next->y -= 1; break;
+    case DOWN:  next->y += 1; break;
     }
-}
-
-void draw_snake (const Snake_buffer *snake_buffer)
-{
-  Point *point = snake_buffer->head;
+  snake_buffer->head = next;
   
-  for (size_t i = 0; i < snake_buffer->max_size; i++)
-    {
-      print_point(point->y, point->x, "*");
-      point = get_next(snake_buffer, point);
-    }
+  return true;
 }
 
-void print_buf(Snake_buffer *snake_buffer)
-{
-  Point *point = snake_buffer->head;
-  for (size_t i = 0; i < snake_buffer->max_size; i++)
-    {
-      point = get_next(snake_buffer, point);
-      printf("x:%u y:%u\n", point->x, point->y);
-    }
-  printf("\n");
-}
+int draw_point(const Point *p) { print_point(p->y, p->x, "*"); return 0;}
+
+int debug_print_point(const Point *p) { printf("x:%u y:%u\n", p->x, p->y); return 0;}
 
 int is_snake_biting_itself(Snake_buffer *snake_buffer)
 {
@@ -144,6 +118,8 @@ void *read_user_input (void *arg)
 {
   char choice;
   Snake_buffer *snake_buffer = (Snake_buffer *)arg;
+
+  assert(snake_buffer != NULL);
 
   choice = getch();
   while (choice != 'x')
@@ -176,8 +152,7 @@ void init_window(int block_size)
 }
 
 int is_snake_hitting_wall(Snake_buffer *snake_buffer)
-{
-  
+{  
   if ((snake_buffer->head->x <= 0)
       || (snake_buffer->head->x >= get_x_max())
       || (snake_buffer->head->y <= 0)
@@ -185,7 +160,6 @@ int is_snake_hitting_wall(Snake_buffer *snake_buffer)
     {
       return 1;
     }
-
   return 0;
 }
 
@@ -209,19 +183,18 @@ void game_loop(Snake_buffer *snake_buffer, long refresh_rate)
       if (is_snake_biting_itself(snake_buffer))
         {
           game_over("Stop biting yourself!");
-          continue;
         }
       else if (is_snake_hitting_wall(snake_buffer))
         {
           game_over("Watch your head!");
-          continue;
         }
-
-      clear();
-      draw_snake((const Snake_buffer *) snake_buffer);
-      refresh();
-
-      display_delay(refresh_rate);
+      else
+        {
+          clear();
+          (void)for_each_point(snake_buffer, draw_point);
+          refresh();
+          display_delay(refresh_rate);
+        }
     }
 }
 
