@@ -1,9 +1,22 @@
-# Makefile
-LDFLAGS=-lncurses -pthread
-CFLAGS=-std=gnu99 -g -Wall
+CC 		 = cc
+SRCDIR 	 = src
+BUILDDIR = build
 
-all: display_util.o main.o 
-	cc -o main main.o display_util.o $(CFLAGS) $(LDFLAGS)
+TARGET   = bin/snake_game
+SOURCES  = $(wildcard $(SRCDIR)/*.c)
+OBJECTS  = $(addprefix $(BUILDDIR)/,$(notdir $(SOURCES:.c=.o)))
+CFLAGS 	 = -Wall -g -std=gnu99 
+LIB 	 = -lncurses -pthread 
 
-display_util:
-	cc -o display_util display_util.o $(CFLAGS) $(LDFLAGS)
+$(TARGET): $(OBJECTS)
+	$(CC) $^ -o $(TARGET) $(LIB)
+
+$(BUILDDIR)/%.o: $(SRCDIR)/%.c $(SRCDIR)/*.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+clean:
+	@echo " Cleaning..."; 
+	rm $(OBJECTS) 
+	rm $(TARGET)
+
+.PHONY: clean% 

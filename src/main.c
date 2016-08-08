@@ -28,7 +28,7 @@ typedef struct {
 } Snake_buffer;
 
 static pthread_mutex_t input_mutex;
-volatile sig_atomic_t g_thread_status = 0;
+static volatile sig_atomic_t g_thread_status = 0;
 
 bool snake_init (Snake_buffer *snake_buffer, size_t size)
 {
@@ -69,7 +69,9 @@ int for_each_point(Snake_buffer *snake_buffer, int (*operation)(const Point *))
 
 bool move_by_offset(Snake_buffer *snake_buffer, Direction direction)
 {
+  pthread_mutex_lock(&input_mutex);
 
+  // Snake should not move backwards 
   if ((direction == LEFT    && snake_buffer->last_direction == RIGHT)
       || (direction == RIGHT && snake_buffer->last_direction == LEFT)
       || (direction == UP    && snake_buffer->last_direction == DOWN)
@@ -79,20 +81,26 @@ bool move_by_offset(Snake_buffer *snake_buffer, Direction direction)
     }
 
   Point *next = get_next(snake_buffer, snake_buffer->head);
-  snake_buffer->last_direction = direction;
-
   next->x = snake_buffer->head->x;
   next->y = snake_buffer->head->y;
   
   switch (direction)
     {
-    case LEFT:  next->x -= 1; break;
-    case RIGHT: next->x += 1; break;
-    case UP:    next->y -= 1; break;
-    case DOWN:  next->y += 1; break;
+    case LEFT:  next->x -= 1;
+      break;
+    case RIGHT: next->x += 1;
+      break;
+    case UP:    next->y -= 1;
+      break;
+    case DOWN:  next->y += 1;
+      break;
     }
   snake_buffer->head = next;
-  
+
+  // Save current direction as last-direction
+  snake_buffer->last_direction = direction;
+
+  pthread_mutex_unlock(&input_mutex);
   return true;
 }
 
@@ -108,7 +116,7 @@ int is_snake_biting_itself(Snake_buffer *snake_buffer)
   for (size_t i = 0; i < snake_buffer->max_size-1; i++)
     {
       if (point->x == head->x && point->y == head->y)
-        return 1;        
+        return 1;
       point = get_next(snake_buffer, point);
     }
   return 0;
@@ -124,7 +132,6 @@ void *read_user_input (void *arg)
   choice = getch();
   while (choice != 'x')
     {
-      pthread_mutex_lock(&input_mutex);
       switch(choice)
         {
         case 'a': move_by_offset(snake_buffer, LEFT);
@@ -136,7 +143,6 @@ void *read_user_input (void *arg)
         case 'd': move_by_offset(snake_buffer, RIGHT);
           break;
         }
-      pthread_mutex_unlock(&input_mutex);
       choice = getch();
     }
   g_thread_status = STATUS_STOPPED;
@@ -176,25 +182,18 @@ void game_loop(Snake_buffer *snake_buffer, long refresh_rate)
 {
   while (g_thread_status == STATUS_RUNNING)
     {
-      pthread_mutex_lock(&input_mutex);
       move_by_offset(snake_buffer, snake_buffer->last_direction);
-      pthread_mutex_unlock(&input_mutex);
+
+      clear();
+      (void)for_each_point(snake_buffer, draw_point);
+      refresh();
 
       if (is_snake_biting_itself(snake_buffer))
-        {
-          game_over("Stop biting yourself!");
-        }
+        game_over("Stop biting yourself!");
       else if (is_snake_hitting_wall(snake_buffer))
-        {
-          game_over("Watch your head!");
-        }
+        game_over("Watch your head!");
       else
-        {
-          clear();
-          (void)for_each_point(snake_buffer, draw_point);
-          refresh();
-          display_delay(refresh_rate);
-        }
+        display_delay(refresh_rate);
     }
 }
 
