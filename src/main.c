@@ -8,17 +8,14 @@
 #include <string.h>
 
 #include "display_util.h"
+#include "main.h"
+#include "fruit.h"
 
-#define STATUS_IDLE 0
+#define STATUS_PAUSE 0
 #define STATUS_RUNNING 1
 #define STATUS_STOPPED 2
 
 typedef enum { UP, DOWN, LEFT, RIGHT } Direction;
-
-typedef struct {
-  int x;
-  int y;
-} Point;
 
 typedef struct {
   Point *start;
@@ -28,43 +25,25 @@ typedef struct {
   Direction last_direction;
 } Snake_buffer;
 
-typedef struct {
-  Point *start;
-} Fruits;
-
 static pthread_mutex_t buffer_access_mutex;
 static volatile sig_atomic_t g_thread_status = 0;
 
-bool snake_init (Snake_buffer *snake_buffer, size_t size)
+bool init_snake (Snake_buffer *snake_buffer, size_t max_size, size_t start_size)
 {
-  assert(size>=1);
-  snake_buffer->start = (Point *) malloc(size*sizeof(Point));
+  assert(max_size>=1);
+  assert(start_size<max_size);
+  
+  snake_buffer->start = (Point *) malloc(max_size*sizeof(Point));
   if (snake_buffer->start == NULL)
     return false;
 
-  for (int i=0; i < (int)size; i++)
+  for (int i=0; i < (int)max_size; i++)
     snake_buffer->start[i].x = snake_buffer->start[i].y = 1;
 
-  snake_buffer->head  = snake_buffer->start;
-  snake_buffer->max_size = size;
-  snake_buffer->size = 0;
+  snake_buffer->head     = snake_buffer->start;
+  snake_buffer->max_size = max_size;
+  snake_buffer->size     = start_size;
   return true;
-}
-
-bool init_fruits(Fruits *fruits, size_t size)
-{
-  assert(size>=1);
-  fruits->start = (Point *) malloc(size*sizeof(Point));
-  if (fruits->start == NULL)
-    return false;
-  return true;
-}
-
-void set_fruit_position(Fruits *fruits, int x, int y)
-{
-  assert(fruits != NULL);
-  fruits->start->x = x;
-  fruits->start->y = y;
 }
 
 Point* get_next(const Snake_buffer *snake_buffer, Point *position)
@@ -155,10 +134,11 @@ bool move_by_offset(Snake_buffer *snake_buffer, Direction direction)
 
 int draw_point(const Point *p)
 {
-  print_string_at_point(p->y, p->x, '*', get_unit_size());
+  print_block_point(p->y, p->x, '*', get_unit_size());
   return 0;
 }
 
+// for debuguing
 int debug_print_point(const Point *p) { printf("x:%u y:%u\n", p->x, p->y); return 0;}
 
 int is_snake_biting_itself(Snake_buffer *snake_buffer)
@@ -175,6 +155,18 @@ int is_snake_biting_itself(Snake_buffer *snake_buffer)
   return 0;
 }
 
+void game_paused()
+{
+  char choice;
+  g_thread_status = STATUS_PAUSE;
+  do
+    {
+      choice = getch();
+    }
+  while (choice != 'r' && choice != 'x');          
+  g_thread_status = STATUS_RUNNING;
+}
+
 void *read_user_input (void *arg)
 {
   char choice;
@@ -182,9 +174,9 @@ void *read_user_input (void *arg)
 
   assert(snake_buffer != NULL);
 
-  choice = getch();
-  while (choice != 'x')
+  do
     {
+      choice = getch();
       switch(choice)
         {
         case 'a': move_by_offset(snake_buffer, LEFT);
@@ -195,9 +187,12 @@ void *read_user_input (void *arg)
           break;
         case 'd': move_by_offset(snake_buffer, RIGHT);
           break;
+        case 'p': game_paused();
+          break;
         }
-      choice = getch();
     }
+  while (choice != 'x');
+
   g_thread_status = STATUS_STOPPED;
   return NULL;
 }
@@ -230,7 +225,7 @@ void game_over (const char *msg)
   refresh();
 
   int t = 0;
-  while (g_thread_status == STATUS_RUNNING)
+  while (g_thread_status != STATUS_STOPPED)
     {
       replace_all_char("*."[t], ".*"[t]);
       t = (t+1)%2;
@@ -242,7 +237,13 @@ void game_over (const char *msg)
 void display_fruits(Fruits *fruits)
 {
   assert(fruits != NULL);
-  print_string_at_point(fruits->start->y, fruits->start->x, '$', get_unit_size());
+  print_block_point(fruits->start->y, fruits->start->x, '$', get_unit_size());
+}
+
+
+void display_score(int score)
+{
+  mvprintw(0, 1, "Score: %d", score);
 }
 
 int update_game_status(Snake_buffer *snake_buffer, Fruits *fruits)
@@ -272,19 +273,35 @@ void increase_snake_size (Snake_buffer *snake_buffer)
   snake_buffer->size += 1;
 }
 
+void display_status (int status)
+{
+  switch (status)
+    {
+    case STATUS_PAUSE: mvprintw(0, 11, "PAUSED");
+      break;
+    }
+}
+
 void game_loop(Snake_buffer *snake_buffer, Fruits *fruits, long refresh_rate)
 {
-  while (g_thread_status == STATUS_RUNNING)
+  int score = 0;
+  while (g_thread_status != STATUS_STOPPED)
     {
-      move_by_offset(snake_buffer, snake_buffer->last_direction);
+      if (g_thread_status == STATUS_RUNNING)
+        move_by_offset(snake_buffer, snake_buffer->last_direction);
 
       clear();
       (void)for_each_point(snake_buffer, draw_point);
       display_fruits(fruits);
+      display_score(score);
+      display_status(g_thread_status);
       refresh();
 
       if (update_game_status(snake_buffer, fruits))
-        increase_snake_size(snake_buffer);
+        {
+          score++;
+          increase_snake_size(snake_buffer);
+        }
 
       if (is_snake_biting_itself(snake_buffer))
         game_over("Stop biting yourself!");
@@ -302,7 +319,7 @@ int main(int argc, char *argv[])
 
   pthread_t input_reader_thread;
 
-  if (!snake_init(&snake_buffer, 30))
+  if (!init_snake(&snake_buffer, 30, 3))
     {
       printf("Can't allocte memory for snake!!");
       return -1;
@@ -319,7 +336,6 @@ int main(int argc, char *argv[])
   g_thread_status = STATUS_RUNNING;
   pthread_create(&input_reader_thread, NULL, read_user_input, &snake_buffer);
 
-  snake_buffer.size = 3;
   snake_buffer.last_direction = RIGHT;
   add_fruit(&snake_buffer, &fruits);
   game_loop(&snake_buffer, &fruits, 55000);

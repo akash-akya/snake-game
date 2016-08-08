@@ -27,7 +27,7 @@ static void get_string (char *s, int unit, char ch)
   s[i] = '\0';
 }
 
-void print_string_at_point (int pos_y, int pos_x, char ch, int length)
+void print_block_point (int pos_y, int pos_x, char ch, int length)
 {
   char s[g_unit_x];
 
@@ -55,7 +55,7 @@ void replace_all_char(char src, char dst)
       for (int j = 0; j <= X_MAX/g_unit_x; j++)
         if (mvinchnstr(i*g_unit_y, j*g_unit_x, s, 1)
             && s[0] == (unsigned long)src)
-          print_string_at_point(i, j, dst, g_unit_x);
+          print_block_point(i, j, dst, g_unit_x);
     }
 }
 
