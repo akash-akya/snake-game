@@ -21,7 +21,7 @@ int set_unit_size (int unit_x, int unit_y)
 static void get_string (char *s, int unit, char ch)
 {
   int i;
-  
+
   for (i=0; i<unit; i++)
     s[i] = ch;
   s[i] = '\0';
@@ -30,7 +30,7 @@ static void get_string (char *s, int unit, char ch)
 void print_string_at_point (int pos_y, int pos_x, char ch, int length)
 {
   char s[g_unit_x];
-  
+
   if ((pos_x >= 0 && pos_x <= X_MAX/g_unit_x)
       && (pos_y >= 0 && pos_y <= Y_MAX/g_unit_y))
     {

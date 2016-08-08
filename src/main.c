@@ -87,7 +87,7 @@ void add_fruit(Snake_buffer *snake_buffer, Fruits *fruits)
       is_point_unique = 1;
 
       Point *point = get_next(snake_buffer, snake_buffer->head);
-      
+
       for (size_t i = 0; i < snake_buffer->size-1; i++)
         {
           if (point->x == x && point->y == y)
@@ -285,7 +285,7 @@ void game_loop(Snake_buffer *snake_buffer, Fruits *fruits, long refresh_rate)
 
       if (update_game_status(snake_buffer, fruits))
         increase_snake_size(snake_buffer);
-      
+
       if (is_snake_biting_itself(snake_buffer))
         game_over("Stop biting yourself!");
       else if (is_snake_hitting_wall(snake_buffer))
@@ -299,7 +299,7 @@ int main(int argc, char *argv[])
 {
   Snake_buffer snake_buffer;
   Fruits fruits;
-  
+
   pthread_t input_reader_thread;
 
   if (!snake_init(&snake_buffer, 30))
