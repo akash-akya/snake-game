@@ -12,4 +12,6 @@ bool init_fruits(Fruits *fruits, size_t size);
 
 void set_fruit_position(Fruits *fruits, int x, int y);
 
+void clear_fruits(Fruits *fruit);
+
 #endif

@@ -10,6 +10,8 @@ void print_char_at_point (int pos_y, int pos_x, char ch);
 
 void print_block_point (int pos_y, int pos_x, char ch, int length);
 
+void print_rect (int pos_y, int pos_x, int y_len, int x_len, int unit_size, char ch);
+
 void display_delay(long refresh_rate);
 
 void replace_all_char(char src, char dst);

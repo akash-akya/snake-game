@@ -6,10 +6,12 @@
 #include <assert.h>
 #include <pthread.h>
 #include <string.h>
+#include <time.h>
 
 #include "display_util.h"
 #include "main.h"
 #include "fruit.h"
+#include "map.h"
 
 #define STATUS_PAUSE 0
 #define STATUS_RUNNING 1
@@ -32,7 +34,7 @@ bool init_snake (Snake_buffer *snake_buffer, size_t max_size, size_t start_size)
 {
   assert(max_size>=1);
   assert(start_size<max_size);
-  
+
   snake_buffer->start = (Point *) malloc(max_size*sizeof(Point));
   if (snake_buffer->start == NULL)
     return false;
@@ -163,7 +165,7 @@ void game_paused()
     {
       choice = getch();
     }
-  while (choice != 'r' && choice != 'x');          
+  while (choice != 'r' && choice != 'x');
   g_thread_status = STATUS_RUNNING;
 }
 
@@ -237,9 +239,27 @@ void game_over (const char *msg)
 void display_fruits(Fruits *fruits)
 {
   assert(fruits != NULL);
-  print_block_point(fruits->start->y, fruits->start->x, '$', get_unit_size());
+  print_block_point(fruits->start->y, fruits->start->x, '@', get_unit_size());
 }
 
+void show_map_name(const char *name)
+{
+  mvprintw(0, 136-strlen(name), name);
+}
+
+void display_map(Map *map)
+{
+  show_map_name(map->name);
+  for (int i = 0; i < map->number_of_rect; i++)
+    {
+      print_rect(map->rect[i].top_left.y,
+                 map->rect[i].top_left.x,
+                 map->rect[i].bottom_right.y-map->rect[i].top_left.y,
+                 map->rect[i].bottom_right.x-map->rect[i].top_left.x,
+                 get_unit_size(),
+                 '8');
+    }
+}
 
 void display_score(int score)
 {
@@ -282,7 +302,7 @@ void display_status (int status)
     }
 }
 
-void game_loop(Snake_buffer *snake_buffer, Fruits *fruits, long refresh_rate)
+void game_loop(Snake_buffer *snake_buffer, Fruits *fruits, Map *map, long refresh_rate)
 {
   int score = 0;
   while (g_thread_status != STATUS_STOPPED)
@@ -292,6 +312,7 @@ void game_loop(Snake_buffer *snake_buffer, Fruits *fruits, long refresh_rate)
 
       clear();
       (void)for_each_point(snake_buffer, draw_point);
+      display_map(map);
       display_fruits(fruits);
       display_score(score);
       display_status(g_thread_status);
@@ -314,12 +335,17 @@ void game_loop(Snake_buffer *snake_buffer, Fruits *fruits, long refresh_rate)
 
 int main(int argc, char *argv[])
 {
+  char *map_file_name = NULL;
   Snake_buffer snake_buffer;
   Fruits fruits;
+  Map map;
 
   pthread_t input_reader_thread;
 
-  if (!init_snake(&snake_buffer, 30, 3))
+  if (argc>0)
+    map_file_name = argv[1];
+
+  if (!init_snake(&snake_buffer, 60, 3))
     {
       printf("Can't allocte memory for snake!!");
       return -1;
@@ -331,6 +357,15 @@ int main(int argc, char *argv[])
       return -1;
     }
 
+  if (!init_map(&map, 30))
+    {
+      printf("Can't allocte memory for map!!");
+      return -1;
+    }
+
+  // Randomize seed
+  srand(time(NULL));
+
   init_window(2);
 
   g_thread_status = STATUS_RUNNING;
@@ -338,11 +373,20 @@ int main(int argc, char *argv[])
 
   snake_buffer.last_direction = RIGHT;
   add_fruit(&snake_buffer, &fruits);
-  game_loop(&snake_buffer, &fruits, 55000);
+
+  if (map_file_name != NULL)
+    if (load_map(map_file_name, &map) == -1)
+      return -1;
+
+  print_map(&map);
+  game_loop(&snake_buffer, &fruits, &map, 55000);
 
   pthread_join(input_reader_thread, NULL);
   endwin();
+
   free(snake_buffer.start);
+  clear_fruits(&fruits);
+  clear_map(&map);
 
   return 0;
 }

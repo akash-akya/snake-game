@@ -41,6 +41,16 @@ void print_block_point (int pos_y, int pos_x, char ch, int length)
     }
 }
 
+void print_rect (int pos_y, int pos_x, int y_len, int x_len, int unit_size, char ch)
+{
+  char s[x_len*unit_size];
+
+  get_string(s, x_len*unit_size, ch);
+
+  for (int i = 0; i < y_len*unit_size; i++)
+    mvprintw(pos_y*unit_size+i, pos_x*unit_size, s);
+}
+
 void print_char_at_point (int pos_y, int pos_x, char ch)
 {
   char s[2] = {ch, '\0'};

@@ -19,3 +19,7 @@ void set_fruit_position(Fruits *fruits, int x, int y)
   fruits->start->y = y;
 }
 
+void clear_fruits(Fruits *fruit)
+{
+  free(fruit->start);
+}
