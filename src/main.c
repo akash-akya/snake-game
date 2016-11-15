@@ -17,6 +17,13 @@
 #define STATUS_RUNNING 1
 #define STATUS_STOPPED 2
 
+#define DOWN_KEY 0x42
+#define LEFT_KEY 0x44
+#define RIGHT_KEY 0x43
+#define UP_KEY 0x41
+#define ESC_KEY 27
+
+// ಹಾವಿನ ಆಟ
 typedef enum { UP, DOWN, LEFT, RIGHT } Direction;
 
 typedef struct {
@@ -100,6 +107,7 @@ int for_each_point(Snake_buffer *snake_buffer, int (*operation)(const Point *))
 bool move_by_offset(Snake_buffer *snake_buffer, Direction direction)
 {
   // Snake should not move backwards
+  // ಹಾವಿನ ಹಿಂಬದಿಯ ಚಲನೆ ನಿಷೇದಿಸಿದೆ
   if ((direction == LEFT    && snake_buffer->last_direction == RIGHT)
       || (direction == RIGHT && snake_buffer->last_direction == LEFT)
       || (direction == UP    && snake_buffer->last_direction == DOWN)
@@ -171,7 +179,7 @@ void game_paused()
 
 void *read_user_input (void *arg)
 {
-  char choice;
+  int choice;
   Snake_buffer *snake_buffer = (Snake_buffer *)arg;
 
   assert(snake_buffer != NULL);
@@ -179,16 +187,25 @@ void *read_user_input (void *arg)
   do
     {
       choice = getch();
+
       switch(choice)
         {
+        case LEFT_KEY:
         case 'a': move_by_offset(snake_buffer, LEFT);
           break;
+
+        case DOWN_KEY:
         case 's': move_by_offset(snake_buffer, DOWN);
           break;
+
+        case UP_KEY:
         case 'w': move_by_offset(snake_buffer, UP);
           break;
+
+        case RIGHT_KEY:
         case 'd': move_by_offset(snake_buffer, RIGHT);
           break;
+
         case 'p': game_paused();
           break;
         }
@@ -285,12 +302,14 @@ int update_game_status(Snake_buffer *snake_buffer, Fruits *fruits)
 void increase_snake_size (Snake_buffer *snake_buffer)
 {
   assert(snake_buffer->size < snake_buffer->max_size);
-  Point *point = snake_buffer->start+snake_buffer->size;
+  Point *point = NULL;
 
-  point->x = -1;
-  point->y = -1;
-
-  snake_buffer->size += 1;
+  for (int i=0 ; i < 3; i++) {
+    point = snake_buffer->start+snake_buffer->size;
+    point->x = -1;
+    point->y = -1;
+    snake_buffer->size += 1;
+  }
 }
 
 void display_status (int status)
@@ -366,7 +385,7 @@ int main(int argc, char *argv[])
   // Randomize seed
   srand(time(NULL));
 
-  init_window(2);
+  init_window(1);
 
   g_thread_status = STATUS_RUNNING;
   pthread_create(&input_reader_thread, NULL, read_user_input, &snake_buffer);
