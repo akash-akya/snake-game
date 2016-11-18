@@ -1,0 +1,6 @@
+GTAGS
+GPATH
+GRTAGS
+GSYMS
+bin/*
+build/*
