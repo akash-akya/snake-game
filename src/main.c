@@ -17,10 +17,6 @@
 #define STATUS_RUNNING 1
 #define STATUS_STOPPED 2
 
-#define DOWN_KEY 0x42
-#define LEFT_KEY 0x44
-#define RIGHT_KEY 0x43
-#define UP_KEY 0x41
 #define ESC_KEY 27
 
 // ಹಾವಿನ ಆಟ
@@ -33,9 +29,6 @@ typedef struct {
   size_t max_size;
   Direction last_direction;
 } Snake_buffer;
-
-static pthread_mutex_t buffer_access_mutex;
-static volatile sig_atomic_t g_thread_status = 0;
 
 bool init_snake (Snake_buffer *snake_buffer, size_t max_size, size_t start_size)
 {
@@ -89,7 +82,7 @@ void add_fruit(Snake_buffer *snake_buffer, Fruits *fruits)
   fruits->start->y = y;
 }
 
-int for_each_point(Snake_buffer *snake_buffer, int (*operation)(const Point *))
+int for_each_point(const Snake_buffer *snake_buffer, int (*operation)(const Point *))
 {
   assert(snake_buffer != NULL);
   int ret;
@@ -116,8 +109,6 @@ bool move_by_offset(Snake_buffer *snake_buffer, Direction direction)
       return false;
     }
 
-  pthread_mutex_lock(&buffer_access_mutex);
-
   Point *next = get_next(snake_buffer, snake_buffer->head);
   next->x = snake_buffer->head->x;
   next->y = snake_buffer->head->y;
@@ -138,7 +129,6 @@ bool move_by_offset(Snake_buffer *snake_buffer, Direction direction)
   // Save current direction as last-direction
   snake_buffer->last_direction = direction;
 
-  pthread_mutex_unlock(&buffer_access_mutex);
   return true;
 }
 
@@ -165,57 +155,6 @@ int is_snake_biting_itself(Snake_buffer *snake_buffer)
   return 0;
 }
 
-void game_paused()
-{
-  char choice;
-  g_thread_status = STATUS_PAUSE;
-  do
-    {
-      choice = getch();
-    }
-  while (choice != 'r' && choice != 'x');
-  g_thread_status = STATUS_RUNNING;
-}
-
-void *read_user_input (void *arg)
-{
-  int choice;
-  Snake_buffer *snake_buffer = (Snake_buffer *)arg;
-
-  assert(snake_buffer != NULL);
-
-  do
-    {
-      choice = getch();
-
-      switch(choice)
-        {
-        case LEFT_KEY:
-        case 'a': move_by_offset(snake_buffer, LEFT);
-          break;
-
-        case DOWN_KEY:
-        case 's': move_by_offset(snake_buffer, DOWN);
-          break;
-
-        case UP_KEY:
-        case 'w': move_by_offset(snake_buffer, UP);
-          break;
-
-        case RIGHT_KEY:
-        case 'd': move_by_offset(snake_buffer, RIGHT);
-          break;
-
-        case 'p': game_paused();
-          break;
-        }
-    }
-  while (choice != 'x');
-
-  g_thread_status = STATUS_STOPPED;
-  return NULL;
-}
-
 void init_window(int block_size)
 {
   initscr();
@@ -238,22 +177,20 @@ int is_snake_hitting_wall(Snake_buffer *snake_buffer)
 
 void game_over (const char *msg)
 {
+  const int rate = 7;
+  static int state = 0;
   unsigned int len_msg = strlen(msg);
+
   mvprintw(get_mid_y()-1, get_mid_x()-len_msg/2, msg);
   mvprintw(get_mid_y(), get_mid_x()-5, "GAME-OVER");
   refresh();
 
-  int t = 0;
-  while (g_thread_status != STATUS_STOPPED)
-    {
-      replace_all_char("*."[t], ".*"[t]);
-      t = (t+1)%2;
-      refresh();
-      display_delay(150000);
-    }
+  int t = state < rate ? 0 : 1;
+  replace_all_char("*."[t], ".*"[t]);
+  state = state > rate<<1 ? 0 : state+1;
 }
 
-void display_fruits(Fruits *fruits)
+void display_fruits(const Fruits *fruits)
 {
   assert(fruits != NULL);
   print_block_point(fruits->start->y, fruits->start->x, '@', get_unit_size());
@@ -264,7 +201,7 @@ void show_map_name(const char *name)
   mvprintw(0, 136-strlen(name), name);
 }
 
-void display_map(Map *map)
+void display_map(const Map *map)
 {
   show_map_name(map->name);
   for (int i = 0; i < map->number_of_rect; i++)
@@ -321,34 +258,85 @@ void display_status (int status)
     }
 }
 
+void draw_buffer_on_screen(const Snake_buffer *snake_buffer, const Fruits *fruits, const Map *map, const unsigned int score)
+{
+  clear();
+  (void)for_each_point(snake_buffer, draw_point);
+  display_map(map);
+  display_fruits(fruits);
+  display_score(score);
+  refresh();
+}
+
 void game_loop(Snake_buffer *snake_buffer, Fruits *fruits, Map *map, long refresh_rate)
 {
-  int score = 0;
-  while (g_thread_status != STATUS_STOPPED)
+  const int RUNNING = 0;
+  const int GAME_OVER = 1;
+  const int PAUSED = 2;
+
+  unsigned int score = 0;
+  int ch = 0;
+  int game_state = RUNNING;
+
+  nodelay(stdscr, TRUE);
+  keypad(stdscr,TRUE);  /* allow keypad keys to be used */
+
+  while ((ch = getch()) != 'x')
     {
-      if (g_thread_status == STATUS_RUNNING)
-        move_by_offset(snake_buffer, snake_buffer->last_direction);
-
-      clear();
-      (void)for_each_point(snake_buffer, draw_point);
-      display_map(map);
-      display_fruits(fruits);
-      display_score(score);
-      display_status(g_thread_status);
-      refresh();
-
-      if (update_game_status(snake_buffer, fruits))
+      if (game_state == RUNNING)
         {
-          score++;
-          increase_snake_size(snake_buffer);
+          switch(ch)
+            {
+            case KEY_LEFT:
+            case 'a': move_by_offset(snake_buffer, LEFT);
+              break;
+
+            case KEY_DOWN:
+            case 's': move_by_offset(snake_buffer, DOWN);
+              break;
+
+            case KEY_UP:
+            case 'w': move_by_offset(snake_buffer, UP);
+              break;
+
+            case KEY_RIGHT:
+            case 'd': move_by_offset(snake_buffer, RIGHT);
+              break;
+
+            case 'p': game_state = PAUSED;
+              break;
+
+            default:
+              move_by_offset(snake_buffer, snake_buffer->last_direction);
+              break;
+            }
+
+          if (update_game_status(snake_buffer, fruits))
+            {
+              score++;
+              increase_snake_size(snake_buffer);
+            }
+
+          draw_buffer_on_screen(snake_buffer, fruits, map, score);
+        }
+      else if (game_state == PAUSED)
+        {
+          if (ch == 'r')
+            game_state = RUNNING;
         }
 
       if (is_snake_biting_itself(snake_buffer))
-        game_over("Stop biting yourself!");
+        {
+          game_state = GAME_OVER;
+          game_over("Stop biting yourself!");
+        }
       else if (is_snake_hitting_wall(snake_buffer))
-        game_over("Watch your head!");
-      else
-        display_delay(refresh_rate);
+        {
+          game_state = GAME_OVER;
+          game_over("Watch your head!");
+        }
+
+      display_delay(refresh_rate);
     }
 }
 
@@ -358,8 +346,6 @@ int main(int argc, char *argv[])
   Snake_buffer snake_buffer;
   Fruits fruits;
   Map map;
-
-  pthread_t input_reader_thread;
 
   if (argc>0)
     map_file_name = argv[1];
@@ -387,9 +373,6 @@ int main(int argc, char *argv[])
 
   init_window(1);
 
-  g_thread_status = STATUS_RUNNING;
-  pthread_create(&input_reader_thread, NULL, read_user_input, &snake_buffer);
-
   snake_buffer.last_direction = RIGHT;
   add_fruit(&snake_buffer, &fruits);
 
@@ -398,9 +381,8 @@ int main(int argc, char *argv[])
       return -1;
 
   print_map(&map);
-  game_loop(&snake_buffer, &fruits, &map, 55000);
+  game_loop(&snake_buffer, &fruits, &map, 50000);
 
-  pthread_join(input_reader_thread, NULL);
   endwin();
 
   free(snake_buffer.start);
