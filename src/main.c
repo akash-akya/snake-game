@@ -19,7 +19,6 @@
 #define ESC_KEY 27
 
 // ಹಾವಿನ ಆಟ
-typedef enum { UP, DOWN, LEFT, RIGHT } Direction;
 
 typedef struct {
   Point *start;
@@ -183,6 +182,15 @@ int is_snake_hitting_bricks(const Snake_buffer *snake_buffer, const Map *map)
   return 0;
 }
 
+int is_snake_in_portal(const Snake_buffer *snake_buffer, const Map *map)
+{
+  if (mvinch(snake_buffer->head->y, snake_buffer->head->x) == map->portal_char)
+    {
+      return 1;
+    }
+  return 0;
+}
+
 void game_over (const char *msg)
 {
   const int rate = 7;
@@ -208,18 +216,37 @@ void show_map_name(const char *name)
   mvprintw(0, 136-strlen(name), name);
 }
 
-void display_map(const Map *map)
+void draw_bricks(const Map *map)
 {
-  show_map_name(map->name);
-  for (int i = 0; i < map->number_of_rect; i++)
+  for (int i = 0; i < map->number_of_bricks; i++)
     {
-      print_rect(map->rect[i].top_left.y,
-                 map->rect[i].top_left.x,
-                 map->rect[i].bottom_right.y-map->rect[i].top_left.y,
-                 map->rect[i].bottom_right.x-map->rect[i].top_left.x,
+      print_rect(map->bricks[i].top_left.y,
+                 map->bricks[i].top_left.x,
+                 map->bricks[i].bottom_right.y-map->bricks[i].top_left.y,
+                 map->bricks[i].bottom_right.x-map->bricks[i].top_left.x,
                  get_unit_size(),
                  map->brick_char);
     }
+}
+
+void draw_portals(const Map *map)
+{
+  for (int i = 0; i < map->number_of_portals; i++)
+    {
+      print_rect(map->portal[i].top_left.y,
+                 map->portal[i].top_left.x,
+                 map->portal[i].bottom_right.y-map->portal[i].top_left.y,
+                 map->portal[i].bottom_right.x-map->portal[i].top_left.x,
+                 get_unit_size(),
+                 map->portal_char);
+    }
+}
+
+void display_map(const Map *map)
+{
+  show_map_name(map->name);
+  draw_bricks(map);
+  draw_portals(map);
 }
 
 void display_score(int score)
@@ -334,6 +361,18 @@ void game_loop(Snake_buffer *snake_buffer, Fruits *fruits, Map *map, long refres
           game_state = STATUS_GAMEOVER;
           game_over("You're hitting bricks!");
         }
+      if(is_snake_in_portal(snake_buffer, map))
+        {
+          Point p;
+          if(get_portal_point(map, snake_buffer->head, snake_buffer->last_direction, &p))
+            {
+              snake_buffer->head->x = p.x;
+              snake_buffer->head->y = p.y;
+            }
+
+          // snake_buffer->head->x += 10;
+          // snake_buffer->head->y += 10;
+        }
       else if (is_snake_biting_itself(snake_buffer))
         {
           game_state = STATUS_GAMEOVER;
@@ -387,7 +426,7 @@ int main(int argc, char *argv[])
   add_fruit(&snake_buffer, &fruits);
 
   if (map_file_name != NULL)
-    if (load_map(map_file_name, &map, '=') == -1)
+    if (load_map(map_file_name, &map, '=', '0') == -1)
       return -1;
 
   print_map(&map);

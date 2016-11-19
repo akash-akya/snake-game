@@ -6,4 +6,6 @@ typedef struct {
   int y;
 } Point;
 
+typedef enum { UP, DOWN, LEFT, RIGHT } Direction;
+
 #endif
