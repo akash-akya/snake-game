@@ -22,7 +22,7 @@ bool init_map(Map *map, int max_rect)
   return true;
 }
 
-int load_map(const char *path, Map *map)
+int load_map(const char *path, Map *map, const char brick_char)
 {
   assert(path != NULL);
 
@@ -47,6 +47,7 @@ int load_map(const char *path, Map *map)
       i++;
     }
   map->number_of_rect = i;
+  map->brick_char = brick_char;
 
   fclose(file);
   return i;

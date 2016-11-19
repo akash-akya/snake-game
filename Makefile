@@ -6,7 +6,7 @@ TARGET   = bin/snake_game
 SOURCES  = $(wildcard $(SRCDIR)/*.c)
 OBJECTS  = $(addprefix $(BUILDDIR)/,$(notdir $(SOURCES:.c=.o)))
 CFLAGS 	 = -Wall -g -std=gnu99 
-LIB 	 = -lncurses -pthread 
+LIB 	 = -lncurses 
 
 $(TARGET): $(OBJECTS)
 	$(CC) $^ -o $(TARGET) $(LIB)
