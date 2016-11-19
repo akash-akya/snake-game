@@ -26,7 +26,7 @@ bool init_map(Map *map, int max_rect)
   return true;
 }
 
-int load_map(const char *path, Map *map, const char brick_char, const char portal_char)
+int load_map(const char *path, Map *map)
 {
   assert(path != NULL);
 
@@ -42,19 +42,19 @@ int load_map(const char *path, Map *map, const char brick_char, const char porta
       return -1;
 
   map->number_of_portals = 0;
-  // fgets(map->name, sizeof(line), file);
 
   i = 0;
   while (fgets(line, sizeof(line), file))
     {
-      sscanf(line, "%255[^ ]%255[^\n]\n", opcode, arg);
+      sscanf(line, "%255[^ ]%*[ \t]%255[^\n]\n", opcode, arg);
       if(strcmp(opcode, "NAME") == 0)
         {
           strcpy(map->name, arg);
         }
       else if (strcmp(opcode, "BRICK") == 0)
         {
-          sscanf(arg, "%d,%d %d,%d\n", &map->bricks[i].top_left.x,
+          sscanf(arg, "%c %d,%d %d,%d\n", &map->brick_char,
+                 &map->bricks[i].top_left.x,
                  &map->bricks[i].top_left.y,
                  &map->bricks[i].bottom_right.x,
                  &map->bricks[i].bottom_right.y);
@@ -62,7 +62,8 @@ int load_map(const char *path, Map *map, const char brick_char, const char porta
         }
       else if (strcmp(opcode, "PORTAL") == 0)
         {
-          sscanf(arg, "%d %d,%d %d,%d\n", &map->portal_size,
+          sscanf(arg, "%c %d %d,%d %d,%d\n", &map->portal_char,
+                 &map->portal_size,
                  &map->portal[0].top_left.x,
                  &map->portal[0].top_left.y,
                  &map->portal[1].top_left.x,
@@ -77,8 +78,6 @@ int load_map(const char *path, Map *map, const char brick_char, const char porta
         }
     }
   map->number_of_bricks = i;
-  map->brick_char = brick_char;
-  map->portal_char = portal_char;
 
   fclose(file);
 

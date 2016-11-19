@@ -23,7 +23,7 @@ typedef struct {
 
 bool init_map(Map *map, int max_rect);
 
-int load_map(const char *path, Map *map, const char brick_char, const char portal_char);
+int load_map(const char *path, Map *map);
 
 void print_map(Map *map);
 

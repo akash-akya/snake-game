@@ -57,25 +57,14 @@ Point* get_next(const Snake_buffer *snake_buffer, Point *position)
 void add_fruit(const Snake_buffer *snake_buffer, Fruits *fruits)
 {
   int x,y;
-  int is_point_unique = 0;
 
-  while (!is_point_unique)
+  do
     {
       x = 1+rand()%(get_x_max()-1);
       y = 1+rand()%(get_y_max()-1);
-      is_point_unique = 1;
 
-      Point *point = get_next(snake_buffer, snake_buffer->head);
+    } while (mvinch(y, x) != ' ');
 
-      for (size_t i = 0; i < snake_buffer->size-1; i++)
-        {
-          if (point->x == x && point->y == y)
-            {
-              is_point_unique = 0;
-              break;
-            }
-        }
-    }
   fruits->start->x = x;
   fruits->start->y = y;
 }
@@ -426,7 +415,7 @@ int main(int argc, char *argv[])
   add_fruit(&snake_buffer, &fruits);
 
   if (map_file_name != NULL)
-    if (load_map(map_file_name, &map, '=', '0') == -1)
+    if (load_map(map_file_name, &map) == -1)
       return -1;
 
   print_map(&map);
